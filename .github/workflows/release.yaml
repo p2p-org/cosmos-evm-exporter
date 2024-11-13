@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    # paths:
+      # - '**.go'
+      # - 'go.mod'
+      # - 'go.sum'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      discussions: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22.1'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Build Binaries
+        run: |
+          mkdir -p release
+          GOOS=linux GOARCH=amd64 go build -o release/berachain-exporter-linux-amd64
+          GOOS=darwin GOARCH=amd64 go build -o release/berachain-exporter-darwin-amd64
+          GOOS=darwin GOARCH=arm64 go build -o release/berachain-exporter-darwin-arm64
+          GOOS=windows GOARCH=amd64 go build -o release/berachain-exporter-windows-amd64.exe
+
+      - name: Install semantic-release
+        run: npm install @semantic-release/git @semantic-release/changelog @semantic-release/exec conventional-changelog-conventionalcommits
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release -e ./.github/release.config.js

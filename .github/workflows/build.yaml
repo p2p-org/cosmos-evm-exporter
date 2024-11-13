@@ -1,33 +1,28 @@
-name: Build and Release
+name: Build and Package
 
 on:
-  push:
-    branches:
-      - main
+  pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
 
 jobs:
-  build-and-release:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
           go-version: '1.22.1'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-
-      - name: Install dependencies
-        run: npm install @semantic-release/git @semantic-release/changelog @semantic-release/exec conventional-changelog-conventionalcommits
-
-      - name: Build
+      - name: Build Binaries
         run: |
           mkdir -p release
           GOOS=linux GOARCH=amd64 go build -o release/berachain-exporter-linux-amd64
@@ -35,7 +30,8 @@ jobs:
           GOOS=darwin GOARCH=arm64 go build -o release/berachain-exporter-darwin-arm64
           GOOS=windows GOARCH=amd64 go build -o release/berachain-exporter-windows-amd64.exe
 
-      - name: Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release -e ./.github/release.config.js
+      - name: Upload to GitHub Packages
+        uses: actions/upload-artifact@v3
+        with:
+          name: binaries
+          path: release/*
