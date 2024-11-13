@@ -100,3 +100,42 @@ MIT License - see LICENSE file for details
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Commit Messages
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) for semantic versioning. Please format your commit messages according to the following rules:
+
+- `feat: description` - for new features (triggers minor version bump)
+- `fix: description` - for bug fixes (triggers patch version bump)
+- `feat!: description` or `fix!: description` - for breaking changes (triggers major version bump)
+- `chore: description` - for maintenance tasks (no version bump)
+- `docs: description` - for documentation updates (no version bump)
+- `test: description` - for test updates (no version bump)
+- `refactor: description` - for code refactoring (no version bump)
+
+Examples:
+
+```bash
+git commit -m "feat: add new metric for tracking block confirmations"
+git commit -m "fix: correct calculation of EL to CL gap"
+git commit -m "docs: update configuration examples"
+```
+
+### Pull Request Process
+
+1. Fork the repository and create your branch from `main`
+2. Update the README.md with details of changes if applicable
+3. Add tests for any new functionality
+4. Ensure all tests pass and the build succeeds
+5. Update any relevant documentation
+6. Submit a pull request
+
+### Release Process
+
+The project uses semantic-release for automated versioning and changelog generation. Upon merging to main:
+
+1. Commit messages are analyzed
+2. Version is automatically bumped based on conventional commits
+3. CHANGELOG.md is generated/updated
+4. Release is created with built binaries
+5. Git tags are created
