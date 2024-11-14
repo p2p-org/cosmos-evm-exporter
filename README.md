@@ -1,6 +1,6 @@
-# Berachain Block Exporter
+# Cosmos EVM Exporter
 
-A monitoring tool that tracks block production on Berachain's consensus and execution layers, specifically designed to monitor validator block proposals and their corresponding execution blocks.
+A monitoring tool that tracks block production on Cosmos EVM chains consensus and execution layers, specifically designed to monitor validator block proposals and their corresponding execution blocks.
 
 ## Features
 
@@ -46,10 +46,10 @@ enable_stdout = true # Enable console logging
 go run main.go --config=./config.toml
 
 # Build binary
-go build -o berachain-exporter
+go build -o evm-exporter
 
 # Run binary
-./berachain-exporter --config=./config.toml
+./evm-exporter --config=./config.toml
 ```
 
 ## Metrics Endpoint
@@ -59,7 +59,7 @@ Prometheus metrics are available at `http://localhost:2113/metrics`
 ## Requirements
 
 - Go 1.22.1 or later
-- Access to Berachain RPC endpoints
+- Access to Cosmos & Ethereum RPC endpoints
 
 ## Dependencies
 
@@ -79,7 +79,7 @@ git clone [repository-url]
 go mod download
 
 # Build
-go build -o berachain-exporter
+go build -o evm-exporter
 ```
 
 ## Example Output

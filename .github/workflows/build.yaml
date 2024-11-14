@@ -1,37 +1,55 @@
-name: Build and Package
+name: Build
 
 on:
   pull_request:
-    paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
+    branches: [ main ]
 
 jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Run tests
+        run: go test -v ./...
+
   build:
+    needs: test
+    name: Build and Publish
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Setup Go
+      - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.22.1'
+          go-version: '1.21'
 
-      - name: Build Binaries
+      - name: Get short SHA
+        id: sha
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Build binaries
         run: |
           mkdir -p release
-          GOOS=linux GOARCH=amd64 go build -o release/berachain-exporter-linux-amd64
-          GOOS=darwin GOARCH=amd64 go build -o release/berachain-exporter-darwin-amd64
-          GOOS=darwin GOARCH=arm64 go build -o release/berachain-exporter-darwin-arm64
-          GOOS=windows GOARCH=amd64 go build -o release/berachain-exporter-windows-amd64.exe
+          GOOS=linux GOARCH=amd64 go build -o release/evm-exporter-linux-amd64-${{ steps.sha.outputs.sha }}
+          GOOS=darwin GOARCH=amd64 go build -o release/evm-exporter-darwin-amd64-${{ steps.sha.outputs.sha }}
+          GOOS=darwin GOARCH=arm64 go build -o release/evm-exporter-darwin-arm64-${{ steps.sha.outputs.sha }}
+          GOOS=windows GOARCH=amd64 go build -o release/evm-exporter-windows-amd64-${{ steps.sha.outputs.sha }}.exe
 
-      - name: Upload to GitHub Packages
-        uses: actions/upload-artifact@v3
-        with:
-          name: binaries
-          path: release/*
+      - name: Publish to GitHub Packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for file in release/*; do
+            gh release upload "commit-${{ steps.sha.outputs.sha }}" "$file" --clobber || gh release create "commit-${{ steps.sha.outputs.sha }}" "$file"
+          done

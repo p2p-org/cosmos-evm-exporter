@@ -1,4 +1,4 @@
-module blockchecker
+module evm-exporter
 
 go 1.22.1
 

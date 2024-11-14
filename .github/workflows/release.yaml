@@ -10,7 +10,22 @@ on:
       - 'go.sum'
 
 jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22.1'
+
+      - name: Run tests
+        run: go test -v ./...
+
   release:
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -38,10 +53,10 @@ jobs:
       - name: Build Binaries
         run: |
           mkdir -p release
-          GOOS=linux GOARCH=amd64 go build -o release/berachain-exporter-linux-amd64
-          GOOS=darwin GOARCH=amd64 go build -o release/berachain-exporter-darwin-amd64
-          GOOS=darwin GOARCH=arm64 go build -o release/berachain-exporter-darwin-arm64
-          GOOS=windows GOARCH=amd64 go build -o release/berachain-exporter-windows-amd64.exe
+          GOOS=linux GOARCH=amd64 go build -o release/evm-exporter-linux-amd64
+          GOOS=darwin GOARCH=amd64 go build -o release/evm-exporter-darwin-amd64
+          GOOS=darwin GOARCH=arm64 go build -o release/evm-exporter-darwin-arm64
+          GOOS=windows GOARCH=amd64 go build -o release/evm-exporter-windows-amd64.exe
 
       - name: Install semantic-release
         run: npm install @semantic-release/git @semantic-release/changelog @semantic-release/exec conventional-changelog-conventionalcommits

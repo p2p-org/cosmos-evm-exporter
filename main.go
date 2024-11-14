@@ -24,19 +24,21 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Config defines the application's configuration parameters loaded from TOML
 type Config struct {
-	EVMAddress      string `toml:"evm_address"`
-	TargetValidator string `toml:"target_validator"`
-	RPCEndpoint     string `toml:"rpc_endpoint"`
-	LogFile         string `toml:"log_file"`
-	MetricsPort     string `toml:"metrics_port"`
-	EnableFileLog   bool   `toml:"enable_file_log"`
-	EnableStdout    bool   `toml:"enable_stdout"`
-	ETHEndpoint     string `toml:"eth_endpoint"`
+	EVMAddress      string `toml:"evm_address"`      // Address of the EVM contract
+	TargetValidator string `toml:"target_validator"` // Validator address to monitor
+	RPCEndpoint     string `toml:"rpc_endpoint"`     // Consensus layer RPC endpoint
+	LogFile         string `toml:"log_file"`         // Path to log file
+	MetricsPort     string `toml:"metrics_port"`     // Prometheus metrics port
+	EnableFileLog   bool   `toml:"enable_file_log"`  // Enable logging to file
+	EnableStdout    bool   `toml:"enable_stdout"`    // Enable logging to stdout
+	ETHEndpoint     string `toml:"eth_endpoint"`     // Execution layer endpoint
 }
 
 var config *Config
 
+// loadConfig reads and validates the configuration from the specified path
 func loadConfig(path string) (*Config, error) {
 	var cfg Config
 	if _, err := toml.DecodeFile(path, &cfg); err != nil {
@@ -63,16 +65,17 @@ func loadConfig(path string) (*Config, error) {
 	return &cfg, nil
 }
 
+// Prometheus metrics for monitoring validator performance and block processing
 var (
 	blockMetrics = struct {
-		totalProposed        prometheus.Counter
-		executionConfirmed   prometheus.Counter
-		executionMissed      prometheus.Counter
-		emptyConsensusBlocks prometheus.Counter
-		emptyExecutionBlocks prometheus.Counter
-		errors               prometheus.Counter
-		currentHeight        prometheus.Gauge
-		elToClGap            prometheus.Gauge // New metric to track the gap
+		totalProposed        prometheus.Counter // Total blocks proposed by validator
+		executionConfirmed   prometheus.Counter // Blocks confirmed on execution layer
+		executionMissed      prometheus.Counter // Blocks missed on execution layer
+		emptyConsensusBlocks prometheus.Counter // Blocks with no transactions
+		emptyExecutionBlocks prometheus.Counter // Empty blocks on execution layer
+		errors               prometheus.Counter // Block processing errors
+		currentHeight        prometheus.Gauge   // Current block height
+		elToClGap            prometheus.Gauge   // Gap between execution and consensus layers
 	}{
 		totalProposed: promauto.NewCounter(prometheus.CounterOpts{
 			Name: "validator_total_blocks_proposed",
@@ -109,7 +112,7 @@ var (
 	}
 )
 
-// Status response structures
+// StatusResponse defines the structure for consensus layer status API responses
 type StatusResponse struct {
 	Result struct {
 		SyncInfo struct {
@@ -118,7 +121,7 @@ type StatusResponse struct {
 	} `json:"result"`
 }
 
-// Block response structures
+// BlockResponse defines the structure for consensus layer block API responses
 type BlockResponse struct {
 	JsonRPC string `json:"jsonrpc"`
 	ID      int    `json:"id"`
@@ -183,8 +186,8 @@ type BlockResponse struct {
 	} `json:"result"`
 }
 
-// Add structure for parsing the transaction
-type BerachainTx struct {
+// EVMChainTx represents the structure for parsing transactions
+type EVMChainTx struct {
 	MsgType    uint32
 	DataLength uint32
 	Payload    []byte
@@ -196,8 +199,56 @@ var (
 	fileLogger   *log.Logger
 )
 
+// Add this struct for HTTP client configuration
+type httpClient struct {
+	client  *http.Client
+	retries int
+}
+
+// newHTTPClient creates an HTTP client with retry capabilities
+func newHTTPClient() *httpClient {
+	return &httpClient{
+		client: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+		retries: 3,
+	}
+}
+
+// doRequest executes an HTTP request with automatic retries on failure
+func (c *httpClient) doRequest(req *http.Request) (*http.Response, error) {
+	var lastErr error
+	for i := 0; i <= c.retries; i++ {
+		resp, err := c.client.Do(req)
+		if err != nil {
+			lastErr = err
+			if i < c.retries {
+				time.Sleep(time.Second * time.Duration(1<<uint(i)))
+				continue
+			}
+			return nil, err
+		}
+
+		if resp.StatusCode >= 500 && i < c.retries {
+			resp.Body.Close()
+			time.Sleep(time.Second * time.Duration(1<<uint(i)))
+			continue
+		}
+
+		return resp, nil
+	}
+	return nil, lastErr
+}
+
+// getCurrentHeight retrieves the latest block height from the consensus layer
 func getCurrentHeight(rpcEndpoint string) (int64, error) {
-	resp, err := http.Get(rpcEndpoint + "/status")
+	client := newHTTPClient()
+	req, err := http.NewRequest("GET", rpcEndpoint+"/status", nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.doRequest(req)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch status: %w", err)
 	}
@@ -222,8 +273,17 @@ func getCurrentHeight(rpcEndpoint string) (int64, error) {
 	return height, nil
 }
 
+// getBlock fetches block details for a specific height from the consensus layer
 func getBlock(rpcEndpoint string, height int64) (*BlockResponse, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/block?height=%d", rpcEndpoint, height))
+	client := newHTTPClient()
+	req, err := http.NewRequest("GET",
+		fmt.Sprintf("%s/block?height=%d", rpcEndpoint, height),
+		nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.doRequest(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch block: %w", err)
 	}
@@ -275,7 +335,7 @@ func setupLogger() (*log.Logger, *log.Logger) {
 }
 
 // Add this function to decode base64 transactions
-func decodeTx(txBase64 string) (*BerachainTx, error) {
+func decodeTx(txBase64 string) (*EVMChainTx, error) {
 	// Decode base64
 	txData, err := base64.StdEncoding.DecodeString(txBase64)
 	if err != nil {
@@ -288,8 +348,8 @@ func decodeTx(txBase64 string) (*BerachainTx, error) {
 		return nil, fmt.Errorf("tx data too short: %d bytes", len(txData))
 	}
 
-	// Create BerachainTx
-	tx := &BerachainTx{
+	// Create EVMChainTx
+	tx := &EVMChainTx{
 		MsgType:    binary.BigEndian.Uint32(txData[0:4]),
 		DataLength: binary.BigEndian.Uint32(txData[4:8]),
 	}
@@ -325,11 +385,11 @@ func dumpPayload(payload []byte) {
 	}
 }
 
+// getCurrentGap calculates the current block height difference between consensus and execution layers
 func getCurrentGap() (int64, error) {
-	// Get EL block height
-	var elResp struct {
-		Result string `json:"result"`
-	}
+	client := newHTTPClient()
+
+	// Get EL block height with retries
 	elReq := struct {
 		Jsonrpc string   `json:"jsonrpc"`
 		Id      string   `json:"id"`
@@ -347,21 +407,33 @@ func getCurrentGap() (int64, error) {
 		return 0, fmt.Errorf("failed to marshal EL request: %v", err)
 	}
 
-	resp, err := http.Post(config.ETHEndpoint, "application/json", bytes.NewBuffer(elBody))
+	req, err := http.NewRequest("POST", config.ETHEndpoint, bytes.NewBuffer(elBody))
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch EL height: %v", err)
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.doRequest(req)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch EL height: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// Define the response structure
+	elResp := struct {
+		Result string `json:"result"`
+	}{}
 
 	if err := json.NewDecoder(resp.Body).Decode(&elResp); err != nil {
 		return 0, fmt.Errorf("failed to decode EL response: %v", err)
 	}
 
-	elHeight, err := strconv.ParseInt(strings.TrimPrefix(elResp.Result, "0x"), 16, 64)
+	elHeight, err := strconv.ParseInt(elResp.Result[2:], 16, 64)
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse EL height: %v", err)
 	}
 
+	// Get CL height
 	clHeight, err := getCurrentHeight(config.RPCEndpoint)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get CL height: %v", err)
@@ -370,7 +442,7 @@ func getCurrentGap() (int64, error) {
 	return clHeight - elHeight, nil
 }
 
-// Remove the duplicate Block type and update processBlock to use BlockResponse
+// processBlock analyzes a block and updates metrics if it was proposed by our validator
 func processBlock(block *BlockResponse) error {
 	if block.Result.Block.Header.ProposerAddress != config.TargetValidator {
 		return nil // Not our validator
@@ -419,9 +491,6 @@ func processBlock(block *BlockResponse) error {
 }
 
 func getCurrentELHeight() (int64, error) {
-	var elResp struct {
-		Result string `json:"result"`
-	}
 	elReq := struct {
 		Jsonrpc string   `json:"jsonrpc"`
 		Id      string   `json:"id"`
@@ -436,31 +505,62 @@ func getCurrentELHeight() (int64, error) {
 
 	elBody, err := json.Marshal(elReq)
 	if err != nil {
-		return 0, fmt.Errorf("failed to marshal EL request: %v", err)
+		return 0, fmt.Errorf("failed to marshal EL request: %w", err)
 	}
 
-	resp, err := http.Post(config.ETHEndpoint, "application/json", bytes.NewBuffer(elBody))
+	client := newHTTPClient()
+	req, err := http.NewRequest("POST", config.ETHEndpoint, bytes.NewBuffer(elBody))
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch EL height: %v", err)
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.doRequest(req)
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch EL height: %w", err)
 	}
 	defer resp.Body.Close()
 
+	var elResp struct {
+		Result string `json:"result"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&elResp); err != nil {
-		return 0, fmt.Errorf("failed to decode EL response: %v", err)
+		return 0, fmt.Errorf("failed to decode EL response: %w", err)
 	}
 
-	return strconv.ParseInt(strings.TrimPrefix(elResp.Result, "0x"), 16, 64)
+	elHeight, err := strconv.ParseInt(strings.TrimPrefix(elResp.Result, "0x"), 16, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse EL height: %w", err)
+	}
+
+	return elHeight, nil
 }
 
 func main() {
-	// Check for config flag
-	if len(os.Args) != 3 || os.Args[1] != "--config" {
+	// Parse command line arguments for config path
+	if len(os.Args) < 2 {
+		log.Fatal("Usage: go run main.go --config=./config.toml")
+	}
+
+	var configPath string
+	for i := 1; i < len(os.Args); i++ {
+		arg := os.Args[i]
+		if strings.HasPrefix(arg, "--config=") {
+			configPath = strings.TrimPrefix(arg, "--config=")
+			break
+		} else if arg == "--config" && i+1 < len(os.Args) {
+			configPath = os.Args[i+1]
+			break
+		}
+	}
+
+	if configPath == "" {
 		log.Fatal("Usage: go run main.go --config=./config.toml")
 	}
 
 	// Load config
 	var err error
-	config, err = loadConfig(os.Args[2])
+	config, err = loadConfig(configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}

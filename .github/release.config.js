@@ -18,10 +18,10 @@ module.exports = {
         }],
         ['@semantic-release/github', {
             assets: [
-                { path: 'release/berachain-exporter-linux-amd64' },
-                { path: 'release/berachain-exporter-darwin-amd64' },
-                { path: 'release/berachain-exporter-darwin-arm64' },
-                { path: 'release/berachain-exporter-windows-amd64.exe' }
+                { path: 'release/evm-exporter-linux-amd64' },
+                { path: 'release/evm-exporter-darwin-amd64' },
+                { path: 'release/evm-exporter-darwin-arm64' },
+                { path: 'release/evm-exporter-windows-amd64.exe' }
             ],
         }],
         ['@semantic-release/git', {
