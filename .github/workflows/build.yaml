@@ -6,7 +6,7 @@ on:
 
 jobs:
   test:
-    name: Run Tests
+    name: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -16,7 +16,7 @@ jobs:
         with:
           go-version: '1.21'
 
-      - name: Run tests
+      - name: test
         run: go test -v ./...
 
   build:
