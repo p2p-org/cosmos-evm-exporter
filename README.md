@@ -43,10 +43,10 @@ enable_stdout = true # Enable console logging
 
 ```bash
 # Run with config file
-go run main.go --config=./config.toml
+go run ./cmd/exporter/main.go --config=./config.toml
 
 # Build binary
-go build -o evm-exporter
+go build -o evm-exporter ./cmd/exporter
 
 # Run binary
 ./evm-exporter --config=./config.toml
@@ -79,32 +79,16 @@ git clone [repository-url]
 go mod download
 
 # Build
-go build -o evm-exporter
+go build -o evm-exporter ./cmd/exporter
 ```
 
 ## Example Output
 
 ```
-{
-  "time": "2024-11-14T13:09:02Z",
-  "level": "info",
-  "message": "ℹ️ Processing Validator Block",
-  "data": {
-    "cl_height": 7416111,
-    "expected_el_height": 6852744,
-    "gap": 563367
-  }
-}
-{
-  "time": "2024-11-14T13:09:02Z",
-  "level": "success",
-  "message": "✅ Found our block!",
-  "data": {
-    "cl_height": 7416111,
-    "el_height": 6852744,
-    "hash": "0xb0670af82f1a02bfb6bd1052021122c86004cab6167232f6895c228d92398756"
-  }
-}
+{"time":"2024-11-15T10:03:54Z","level":"info","message":"ℹ️ Starting exporter","data":{"metrics_port":":2113"}}
+{"time":"2024-11-15T10:53:34Z","level":"debug","message":"Processing block","data":{"height":"7458296","proposer_address":"B2A5C37E25E52A994550C504E4227A9CBB60F61A"}}
+{"time":"2024-11-15T10:53:34Z","level":"info","message":"ℹ️ Found validator block","data":{"height":7458296,"proposer_address":"B2A5C37E25E52A994550C504E4227A9CBB60F61A"}}
+{"time":"2024-11-15T10:53:34Z","level":"success","message":"✅ Found execution block","data":{"cl_height":7458296,"el_height":6892471,"hash":"0xcf98515011a8245cf680492b57fe22fa042ef963fd0d733b8061d362d1f7ef5b"}}
 ```
 
 ## License
