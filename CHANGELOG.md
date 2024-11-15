@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/p2p-org/cosmos-evm-exporter/compare/v1.0.0...v1.1.0) (2024-11-15)
+
+
+### Features
+
+* refactor and improve retries ([f624915](https://github.com/p2p-org/cosmos-evm-exporter/commit/f6249150f1a05eba106437bdec2a283d2327f4b7))
+
 # 1.0.0 (2024-11-14)
 
 
