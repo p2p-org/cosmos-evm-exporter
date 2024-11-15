@@ -29,8 +29,9 @@ func NewBlockProcessor(config *config.Config, metrics *metrics.BlockMetrics, log
 }
 
 func (p *BlockProcessor) ProcessBlock(block *BlockResponse) error {
-	if block == nil {
-		return fmt.Errorf("block is nil")
+	if block == nil || block.Result.BlockID.Hash == "" {
+		p.metrics.Errors.Inc()
+		return fmt.Errorf("block is nil or invalid")
 	}
 
 	header := block.Result.Block.Header
@@ -41,6 +42,7 @@ func (p *BlockProcessor) ProcessBlock(block *BlockResponse) error {
 	}, nil)
 
 	if header.ProposerAddress == "" {
+		p.metrics.Errors.Inc()
 		return fmt.Errorf("received empty proposer address for height %s", header.Height)
 	}
 
@@ -75,7 +77,17 @@ func (p *BlockProcessor) checkExecutionBlocks(clHeight, expectedELHeight int64) 
 
 	// Check if consensus block was empty
 	block, err := GetBlock(httpClient.NewClient(), p.config.RPCEndpoint, clHeight)
-	if err == nil && len(block.Result.Block.Data.Txs) == 0 {
+	if err != nil {
+		p.metrics.Errors.Inc()
+		return fmt.Errorf("failed to get consensus block: %w", err)
+	}
+
+	if block == nil || block.Result.BlockID.Hash == "" {
+		p.metrics.Errors.Inc()
+		return fmt.Errorf("failed to get consensus block: invalid response")
+	}
+
+	if len(block.Result.Block.Data.Txs) == 0 {
 		p.metrics.EmptyConsensusBlocks.Inc()
 		p.logger.WriteJSONLog("info", "Empty consensus block", map[string]interface{}{
 			"height": clHeight,
@@ -86,6 +98,7 @@ func (p *BlockProcessor) checkExecutionBlocks(clHeight, expectedELHeight int64) 
 	for height := startHeight; height <= endHeight; height++ {
 		block, err := p.client.BlockByNumber(context.Background(), big.NewInt(height))
 		if err != nil {
+			p.metrics.Errors.Inc()
 			p.logger.WriteJSONLog("error", "Failed to fetch block", map[string]interface{}{
 				"height": height,
 			}, err)
@@ -135,6 +148,7 @@ func (p *BlockProcessor) Start(ctx context.Context) {
 			if currentHeight == 0 {
 				height, err := p.GetCurrentHeight()
 				if err != nil {
+					p.metrics.Errors.Inc()
 					p.logger.WriteJSONLog("error", "Failed to get current height", nil, err)
 					time.Sleep(2 * time.Second)
 					continue
@@ -156,13 +170,15 @@ func (p *BlockProcessor) Start(ctx context.Context) {
 
 			// Process the block
 			if err := p.ProcessBlock(block); err != nil {
+				p.metrics.Errors.Inc()
 				p.logger.WriteJSONLog("error", "Error processing block", map[string]interface{}{
 					"height": currentHeight,
 				}, err)
 				errorBlocks++
-				// Only increment height if it's not our validator's block
-				// This ensures we don't miss our validator's blocks due to temporary errors
-				if err.Error() != "block is nil" && block.Result.Block.Header.ProposerAddress != p.config.TargetValidator {
+				// Only increment height if it's not our validator's block and block is valid
+				if err.Error() != "block is nil" && block != nil &&
+					block.Result.BlockID.Hash != "" && // Check for valid block using hash instead
+					block.Result.Block.Header.ProposerAddress != p.config.TargetValidator {
 					currentHeight++
 				}
 				continue
@@ -176,32 +192,42 @@ func (p *BlockProcessor) Start(ctx context.Context) {
 }
 
 // StartMetricsUpdater starts goroutines that continuously update metrics
-func (p *BlockProcessor) StartMetricsUpdater(interval time.Duration) {
-	// Update current height metric
+func (p *BlockProcessor) StartMetricsUpdater(ctx context.Context, interval time.Duration) {
+	// Current height updater
 	go func() {
 		for {
-			height, err := p.GetCurrentHeight()
-			if err != nil {
-				p.logger.WriteJSONLog("error", "Failed to get current height", nil, err)
-				p.metrics.Errors.Inc()
-			} else {
-				p.metrics.CurrentHeight.Set(float64(height))
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				height, err := p.GetCurrentHeight()
+				if err != nil {
+					p.logger.WriteJSONLog("error", "Failed to get current height", nil, err)
+					p.metrics.Errors.Inc()
+				} else {
+					p.metrics.CurrentHeight.Set(float64(height))
+				}
+				time.Sleep(interval)
 			}
-			time.Sleep(interval)
 		}
 	}()
 
-	// Update gap metric
+	// Gap metric updater
 	go func() {
 		for {
-			gap, err := p.GetCurrentGap()
-			if err != nil {
-				p.logger.WriteJSONLog("error", "Failed to get current gap", nil, err)
-				p.metrics.Errors.Inc()
-			} else {
-				p.metrics.ElToClGap.Set(float64(gap))
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				gap, err := p.GetCurrentGap()
+				if err != nil {
+					p.logger.WriteJSONLog("error", "Failed to get current gap", nil, err)
+					p.metrics.Errors.Inc()
+				} else {
+					p.metrics.ElToClGap.Set(float64(gap))
+				}
+				time.Sleep(interval)
 			}
-			time.Sleep(interval)
 		}
 	}()
 }

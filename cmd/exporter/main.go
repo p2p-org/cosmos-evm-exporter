@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,6 +14,8 @@ import (
 	"cosmos-evm-exporter/internal/config"
 	"cosmos-evm-exporter/internal/logger"
 	"cosmos-evm-exporter/internal/metrics"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -33,26 +36,24 @@ func main() {
 		LogFile:      cfg.LogFile,
 	})
 
-	// Initialize metrics
-	blockMetrics := metrics.NewBlockMetrics()
+	// Initialize metrics and register with default prometheus handler
+	metrics := metrics.NewBlockMetrics()
+	http.Handle("/metrics", promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{}))
 
 	// Start metrics server
-	metricsServer := metrics.NewServer(cfg.MetricsPort, blockMetrics.Registry)
 	go func() {
-		if err := metricsServer.Start(); err != nil {
-			log.WriteJSONLog("error", "Metrics server failed", nil, err)
+		if err := http.ListenAndServe(cfg.MetricsPort, nil); err != nil {
+			log.WriteJSONLog("error", "Failed to start metrics server", nil, err)
+			os.Exit(1)
 		}
 	}()
 
 	// Initialize block processor
-	processor, err := blockchain.NewBlockProcessor(cfg, blockMetrics, log)
+	processor, err := blockchain.NewBlockProcessor(cfg, metrics, log)
 	if err != nil {
 		log.WriteJSONLog("error", "Failed to create block processor", nil, err)
 		os.Exit(1)
 	}
-
-	// Start metrics updater
-	processor.StartMetricsUpdater(5 * time.Second)
 
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -67,6 +68,9 @@ func main() {
 		log.WriteJSONLog("info", "Shutting down...", nil, nil)
 		cancel()
 	}()
+
+	// Start metrics updater
+	processor.StartMetricsUpdater(ctx, 5*time.Second)
 
 	// Log startup
 	log.WriteJSONLog("info", "Starting exporter", map[string]interface{}{

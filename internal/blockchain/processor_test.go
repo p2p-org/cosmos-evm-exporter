@@ -14,6 +14,7 @@ import (
 	"cosmos-evm-exporter/internal/logger"
 	"cosmos-evm-exporter/internal/metrics"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -26,7 +27,15 @@ func (m *MockEthClient) BlockByNumber(ctx context.Context, number *big.Int) (*ty
 	if block, ok := m.blocks[number.Int64()]; ok {
 		return block, nil
 	}
-	return nil, fmt.Errorf("block not found")
+	// Create a mock block for testing
+	header := &types.Header{
+		Number:   number,
+		Time:     uint64(time.Now().Unix()),
+		Coinbase: common.HexToAddress("0x1234"), // Match the test case EVMAddress
+	}
+	block := types.NewBlockWithHeader(header)
+	m.blocks[number.Int64()] = block
+	return block, nil
 }
 
 func TestProcessBlock(t *testing.T) {
@@ -36,13 +45,14 @@ func TestProcessBlock(t *testing.T) {
 	// Setup mock servers for EL and CL endpoints
 	elServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintln(w, `{"jsonrpc":"2.0","id":"1","result":"0x64"}`) // hex for height 100
+		fmt.Fprintln(w, `{"jsonrpc":"2.0","id":1,"result":"0x64"}`) // hex for height 100
 	}))
 	defer elServer.Close()
 
 	clServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path == "/status" {
+		switch r.URL.Path {
+		case "/status":
 			json.NewEncoder(w).Encode(StatusResponse{
 				Result: struct {
 					SyncInfo struct {
@@ -53,6 +63,31 @@ func TestProcessBlock(t *testing.T) {
 						LatestBlockHeight string `json:"latest_block_height"`
 					}{
 						LatestBlockHeight: "110",
+					},
+				},
+			})
+		case "/block":
+			// Return a valid block response
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"result": map[string]interface{}{
+					"block_id": map[string]interface{}{
+						"hash": "test_hash_123",
+						"parts": map[string]interface{}{
+							"total": 1,
+							"hash":  "parts_hash_123",
+						},
+					},
+					"block": map[string]interface{}{
+						"header": map[string]interface{}{
+							"height":           "100",
+							"proposer_address": "validator1",
+							"time":             time.Now(),
+						},
+						"data": map[string]interface{}{
+							"txs": []string{"tx1", "tx2"},
+						},
 					},
 				},
 			})
@@ -113,6 +148,22 @@ func TestProcessBlock(t *testing.T) {
 						} `json:"data"`
 					} `json:"block"`
 				}{
+					BlockID: struct {
+						Hash  string `json:"hash"`
+						Parts struct {
+							Total int    `json:"total"`
+							Hash  string `json:"hash"`
+						} `json:"parts"`
+					}{
+						Hash: "test_hash_123",
+						Parts: struct {
+							Total int    `json:"total"`
+							Hash  string `json:"hash"`
+						}{
+							Total: 1,
+							Hash:  "parts_hash_123",
+						},
+					},
 					Block: struct {
 						Header struct {
 							Version struct {
@@ -229,6 +280,22 @@ func TestProcessBlock(t *testing.T) {
 						} `json:"data"`
 					} `json:"block"`
 				}{
+					BlockID: struct {
+						Hash  string `json:"hash"`
+						Parts struct {
+							Total int    `json:"total"`
+							Hash  string `json:"hash"`
+						} `json:"parts"`
+					}{
+						Hash: "test_hash_123",
+						Parts: struct {
+							Total int    `json:"total"`
+							Hash  string `json:"hash"`
+						}{
+							Total: 1,
+							Hash:  "parts_hash_123",
+						},
+					},
 					Block: struct {
 						Header struct {
 							Version struct {
@@ -312,18 +379,17 @@ func TestProcessBlock(t *testing.T) {
 				RPCEndpoint:     clServer.URL,
 			}
 
-			mockClient := &MockEthClient{
+			processor, err := NewBlockProcessor(config, metrics, testLogger)
+			if err != nil {
+				t.Fatalf("Failed to create processor: %v", err)
+			}
+
+			// Initialize mock client
+			processor.client = &MockEthClient{
 				blocks: make(map[int64]*types.Block),
 			}
 
-			processor := &BlockProcessor{
-				config:  config,
-				logger:  testLogger,
-				metrics: metrics,
-				client:  mockClient,
-			}
-
-			err := processor.ProcessBlock(tt.block)
+			err = processor.ProcessBlock(tt.block)
 			if (err != nil) != tt.wantError {
 				t.Errorf("ProcessBlock() error = %v, wantError %v", err, tt.wantError)
 			}
