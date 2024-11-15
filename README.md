@@ -85,12 +85,26 @@ go build -o evm-exporter
 ## Example Output
 
 ```
-=== Processing Validator Block ===
-CL Height: 7368349
-Expected EL Height: 6808651 (gap: 559698)
-✅ Found our block!
-EL Height: 6808651
-Hash: 0xb91ff1929453776e373832be64f9083a3de9aba962187b1919a778297971ae73
+{
+  "time": "2024-11-14T13:09:02Z",
+  "level": "info",
+  "message": "ℹ️ Processing Validator Block",
+  "data": {
+    "cl_height": 7416111,
+    "expected_el_height": 6852744,
+    "gap": 563367
+  }
+}
+{
+  "time": "2024-11-14T13:09:02Z",
+  "level": "success",
+  "message": "✅ Found our block!",
+  "data": {
+    "cl_height": 7416111,
+    "el_height": 6852744,
+    "hash": "0xb0670af82f1a02bfb6bd1052021122c86004cab6167232f6895c228d92398756"
+  }
+}
 ```
 
 ## License

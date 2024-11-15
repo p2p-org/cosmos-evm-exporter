@@ -1,4 +1,4 @@
-module evm-exporter
+module cosmos-evm-exporter
 
 go 1.22.1
 
@@ -20,6 +20,7 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/holiman/uint256 v1.3.1 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
+	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
