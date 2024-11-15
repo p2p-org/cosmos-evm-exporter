@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/p2p-org/cosmos-evm-exporter/compare/v1.1.0...v1.1.1) (2024-11-15)
+
+
+### Bug Fixes
+
+* improve error handling and metric counters ([f575942](https://github.com/p2p-org/cosmos-evm-exporter/commit/f5759424dd632de956a9edfd536375f21c3ae61e))
+
 # [1.1.0](https://github.com/p2p-org/cosmos-evm-exporter/compare/v1.0.0...v1.1.0) (2024-11-15)
 
 
