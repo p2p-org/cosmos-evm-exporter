@@ -107,6 +107,7 @@ type BlockProcessor struct {
 	metrics *metrics.BlockMetrics
 	client  EthClientInterface
 	logger  *logger.Logger
+	lastFoundELHeight int64
 }
 type EVMChainTx struct {
 	MsgType    uint32

@@ -25,6 +25,7 @@ func NewBlockProcessor(config *config.Config, metrics *metrics.BlockMetrics, log
 		logger:  logger,
 		metrics: metrics,
 		client:  client,
+		lastFoundELHeight: 0,
 	}, nil
 }
 
@@ -72,8 +73,16 @@ func (p *BlockProcessor) ProcessBlock(block *BlockResponse) error {
 }
 
 func (p *BlockProcessor) checkExecutionBlocks(clHeight, expectedELHeight int64) error {
-	startHeight := expectedELHeight - 2
-	endHeight := expectedELHeight + 2
+	const defaultOffset = 2 // Default blocks to check before and after expected height
+
+	startHeight := expectedELHeight - defaultOffset
+	endHeight := expectedELHeight + defaultOffset
+
+	// If we have a recent block, start from the next one and maintain the same range size
+	if p.lastFoundELHeight > 0 && expectedELHeight-p.lastFoundELHeight <= 5 {
+		startHeight = p.lastFoundELHeight + 1
+		endHeight = startHeight + (defaultOffset * 2)
+	}
 
 	// Check if consensus block was empty
 	block, err := GetBlock(httpClient.NewClient(), p.config.RPCEndpoint, clHeight)
@@ -108,6 +117,7 @@ func (p *BlockProcessor) checkExecutionBlocks(clHeight, expectedELHeight int64) 
 		if block.Coinbase().Hex() == p.config.EVMAddress {
 			foundBlock = true
 			p.metrics.ExecutionConfirmed.Inc()
+			p.lastFoundELHeight = height // Save the found block height
 			p.logger.WriteJSONLog("success", "Found execution block", map[string]interface{}{
 				"cl_height": clHeight,
 				"el_height": height,
