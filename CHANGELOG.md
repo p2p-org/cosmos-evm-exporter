@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/p2p-org/cosmos-evm-exporter/compare/v1.1.1...v1.1.2) (2024-11-21)
+
+
+### Bug Fixes
+
+* two same block height on el when double propose ([bc2354f](https://github.com/p2p-org/cosmos-evm-exporter/commit/bc2354fa81f0a740c539add872f26432481959f4))
+
 ## [1.1.1](https://github.com/p2p-org/cosmos-evm-exporter/compare/v1.1.0...v1.1.1) (2024-11-15)
 
 
