@@ -21,10 +21,10 @@ func NewBlockProcessor(config *config.Config, metrics *metrics.BlockMetrics, log
 	}
 
 	return &BlockProcessor{
-		config:  config,
-		logger:  logger,
-		metrics: metrics,
-		client:  client,
+		config:            config,
+		logger:            logger,
+		metrics:           metrics,
+		client:            client,
 		lastFoundELHeight: 0,
 	}, nil
 }
@@ -104,32 +104,42 @@ func (p *BlockProcessor) checkExecutionBlocks(clHeight, expectedELHeight int64) 
 	}
 
 	foundBlock := false
+	maxRetries := 6
+	retryDelay := 2 * time.Second
+
 	for height := startHeight; height <= endHeight; height++ {
-		block, err := p.client.BlockByNumber(context.Background(), big.NewInt(height))
-		if err != nil {
-			p.metrics.Errors.Inc()
-			p.logger.WriteJSONLog("error", "Failed to fetch block", map[string]interface{}{
-				"height": height,
-			}, err)
-			continue
+		for attempt := 0; attempt < maxRetries; attempt++ {
+			block, err := p.client.BlockByNumber(context.Background(), big.NewInt(height))
+			if err != nil {
+				p.metrics.Errors.Inc()
+				p.logger.WriteJSONLog("error", "Failed to get execution block", map[string]interface{}{
+					"height":  height,
+					"attempt": attempt + 1,
+				}, err)
+				time.Sleep(retryDelay)
+				continue
+			}
+
+			if block.Coinbase().Hex() == p.config.EVMAddress {
+				foundBlock = true
+				p.metrics.ExecutionConfirmed.Inc()
+				p.logger.WriteJSONLog("success", "Found execution block", map[string]interface{}{
+					"cl_height": clHeight,
+					"el_height": height,
+					"hash":      block.Hash().Hex(),
+				}, nil)
+
+				if len(block.Transactions()) == 0 {
+					p.metrics.EmptyExecutionBlocks.Inc()
+					p.logger.WriteJSONLog("info", "Empty execution block", map[string]interface{}{
+						"height": height,
+					}, nil)
+				}
+				break
+			}
 		}
 
-		if block.Coinbase().Hex() == p.config.EVMAddress {
-			foundBlock = true
-			p.metrics.ExecutionConfirmed.Inc()
-			p.lastFoundELHeight = height // Save the found block height
-			p.logger.WriteJSONLog("success", "Found execution block", map[string]interface{}{
-				"cl_height": clHeight,
-				"el_height": height,
-				"hash":      block.Hash().Hex(),
-			}, nil)
-
-			if len(block.Transactions()) == 0 {
-				p.metrics.EmptyExecutionBlocks.Inc()
-				p.logger.WriteJSONLog("info", "Empty execution block", map[string]interface{}{
-					"height": height,
-				}, nil)
-			}
+		if foundBlock {
 			break
 		}
 	}
