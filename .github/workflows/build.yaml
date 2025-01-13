@@ -3,6 +3,10 @@ name: Build
 on:
   pull_request:
     branches: [ main ]
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
 
 jobs:
   test:
@@ -21,10 +25,9 @@ jobs:
 
   build:
     needs: test
-    name: Build and Publish
+    name: Build and Publish Package
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       packages: write
     steps:
       - uses: actions/checkout@v3
@@ -46,10 +49,16 @@ jobs:
           GOOS=darwin GOARCH=arm64 go build -o release/evm-exporter-darwin-arm64-${{ steps.sha.outputs.sha }} ./cmd/exporter
           GOOS=windows GOARCH=amd64 go build -o release/evm-exporter-windows-amd64-${{ steps.sha.outputs.sha }}.exe ./cmd/exporter
 
-      - name: Publish to GitHub Packages
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create package archive
         run: |
-          for file in release/*; do
-            gh release upload "commit-${{ steps.sha.outputs.sha }}" "$file" --clobber || gh release create "commit-${{ steps.sha.outputs.sha }}" "$file"
-          done
+          cd release && tar czf ../evm-exporter-${{ steps.sha.outputs.sha }}.tar.gz \
+            evm-exporter-linux-amd64-${{ steps.sha.outputs.sha }} \
+            evm-exporter-darwin-amd64-${{ steps.sha.outputs.sha }} \
+            evm-exporter-darwin-arm64-${{ steps.sha.outputs.sha }} \
+            evm-exporter-windows-amd64-${{ steps.sha.outputs.sha }}.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: evm-exporter-${{ steps.sha.outputs.sha }}
+          path: evm-exporter-${{ steps.sha.outputs.sha }}.tar.gz
