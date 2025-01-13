@@ -53,10 +53,10 @@ jobs:
       - name: Build Binaries
         run: |
           mkdir -p release
-          GOOS=linux GOARCH=amd64 go build -o release/evm-exporter-linux-amd64 ./cmd/exporter
-          GOOS=darwin GOARCH=amd64 go build -o release/evm-exporter-darwin-amd64 ./cmd/exporter
-          GOOS=darwin GOARCH=arm64 go build -o release/evm-exporter-darwin-arm64 ./cmd/exporter
-          GOOS=windows GOARCH=amd64 go build -o release/evm-exporter-windows-amd64.exe ./cmd/exporter
+          GOOS=linux GOARCH=amd64 go build -tags "netgo osusergo" -o release/evm-exporter-linux-amd64 ./cmd/exporter
+          GOOS=darwin GOARCH=amd64 go build -tags "netgo osusergo" -o release/evm-exporter-darwin-amd64 ./cmd/exporter
+          GOOS=darwin GOARCH=arm64 go build -tags "netgo osusergo" -o release/evm-exporter-darwin-arm64 ./cmd/exporter
+          GOOS=windows GOARCH=amd64 go build -tags "netgo osusergo" -o release/evm-exporter-windows-amd64.exe ./cmd/exporter
 
       - name: Install semantic-release
         run: npm install @semantic-release/git @semantic-release/changelog @semantic-release/exec conventional-changelog-conventionalcommits
