@@ -44,10 +44,10 @@ jobs:
       - name: Build binaries
         run: |
           mkdir -p release
-          GOOS=linux GOARCH=amd64 go build -o release/evm-exporter-linux-amd64-${{ steps.sha.outputs.sha }} ./cmd/exporter
-          GOOS=darwin GOARCH=amd64 go build -o release/evm-exporter-darwin-amd64-${{ steps.sha.outputs.sha }} ./cmd/exporter
-          GOOS=darwin GOARCH=arm64 go build -o release/evm-exporter-darwin-arm64-${{ steps.sha.outputs.sha }} ./cmd/exporter
-          GOOS=windows GOARCH=amd64 go build -o release/evm-exporter-windows-amd64-${{ steps.sha.outputs.sha }}.exe ./cmd/exporter
+          GOOS=linux GOARCH=amd64 go build -tags "netgo osusergo" -o release/evm-exporter-linux-amd64-${{ steps.sha.outputs.sha }} ./cmd/exporter
+          GOOS=darwin GOARCH=amd64 go build -tags "netgo osusergo" -o release/evm-exporter-darwin-amd64-${{ steps.sha.outputs.sha }} ./cmd/exporter
+          GOOS=darwin GOARCH=arm64 go build -tags "netgo osusergo" -o release/evm-exporter-darwin-arm64-${{ steps.sha.outputs.sha }} ./cmd/exporter
+          GOOS=windows GOARCH=amd64 go build -tags "netgo osusergo" -o release/evm-exporter-windows-amd64-${{ steps.sha.outputs.sha }}.exe ./cmd/exporter
 
       - name: Create package archive
         run: |
