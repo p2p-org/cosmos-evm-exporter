@@ -7,7 +7,6 @@ require (
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.13.0 // indirect
-	github.com/btcsuite/btcd/btcec/v2 v2.3.4 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/consensys/bavard v0.1.13 // indirect
 	github.com/consensys/gnark-crypto v0.12.1 // indirect
@@ -40,7 +39,7 @@ require (
 
 require (
 	github.com/BurntSushi/toml v1.4.0
-	github.com/ethereum/go-ethereum v1.14.11
+	github.com/ethereum/go-ethereum v1.14.13
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/prometheus/client_golang v1.20.5
 	github.com/urfave/cli/v2 v2.27.5 // indirect
